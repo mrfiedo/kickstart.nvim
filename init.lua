@@ -91,7 +91,7 @@ vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
@@ -349,7 +349,53 @@ require('lazy').setup({
   -- you do for a plugin at the top level, you can do for a dependency.
   --
   -- Use the `dependencies` key to specify the dependencies of a particular plugin
+  -- 'MunifTanjim/nui.nvim',
+  -- {
+  --  'nvim-neo-tree/neo-tree.nvim',
+  -- branch = 'v2.x',
+  -- requires = {
+  --  'nvim-lua/plenary.nvim',
+  -- 'nvim-tree/nvim-web-devicons',
+  -- 'MunifTanjim/nui.nvim',
+  -- },
+  -- config = function()
+  -- require('neo-tree').setup {
+  -- close_if_last_window = true, -- Close Neo-tree if it's the last open window
+  -- filesystem = {
+  -- follow_current_file = true, -- Sync with the file currently open
+  -- use_libuv_file_watcher = true, -- Watch for changes in the file system
+  -- hide_gitignored = false,
+  -- hide_dotfiles = false,
+  -- },
+  -- window = {
+  -- position = 'left',
+  -- width = 40,
+  -- scrollable = true,
+  -- preserve_floating_window = true,
+  -- mappings = {
+  -- ['<CR>'] = 'open',
+  -- ['<BS>'] = 'navigate_up',
+  -- ['<C-s>'] = 'split_with_window_picker',
+  -- },
+  -- },
+  -- default_component_configs = {
+  --  indent = {
+  --   padding = 1, -- Padding in the tree for better visual alignment
+  -- },
+  -- icon = vim.g.have_nerd_font and {} or {
+  -- folder_closed = '',
+  -- folder_open = '',
+  -- folder_empty = '',
+  -- },
+  -- name = {
+  --  highlight_opened_files = true,
+  -- },
+  -- },
 
+  -- }
+  -- end,
+  -- },
+  -- 'kyazdani42/nvim-tree.lua',
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
     event = 'VimEnter',
@@ -399,11 +445,13 @@ require('lazy').setup({
         -- You can put your default mappings / updates / etc. in here
         --  All the info you're looking for is in `:help telescope.setup()`
         --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
+        defaults = {
+          mappings = {
+            i = { ['<c-enter>'] = 'to_fuzzy_refine' },
+          },
+          cwd = vim.loop.cwd(),
+          path_display = 'filename_first',
+        },
         -- pickers = {}
         extensions = {
           ['ui-select'] = {
@@ -483,6 +531,7 @@ require('lazy').setup({
 
       -- Allows extra capabilities provided by blink.cmp
       'saghen/blink.cmp',
+      'mfussenegger/nvim-jdtls',
     },
     config = function()
       -- Brief aside: **What is LSP?**
@@ -653,6 +702,123 @@ require('lazy').setup({
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
 
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = 'java',
+        callback = function()
+          local jdtls = require 'jdtls'
+          local home = vim.env.HOME
+          local workspace_folder = home .. '/.workspace/' .. vim.fn.fnamemodify(vim.fn.getcwd(), ':p:h:t')
+
+          local config = {
+            flags = {
+              allow_incremental_sync = true,
+            },
+            cmd = {
+              '/usr/lib/jvm/java-21-openjdk-amd64/bin/java',
+              '-Declipse.application=org.eclipse.jdt.ls.core.id1',
+              '-Dosgi.bundles.defaultStartLevel=4',
+              '-Declipse.product=org.eclipse.jdt.ls.core.product',
+              '-Dlog.protocol=true',
+              '-Dlog.level=ALL',
+              '-Xmx1G',
+              '--add-modules=ALL-SYSTEM',
+              '--add-opens',
+              'java.base/java.util=ALL-UNNAMED',
+              '--add-opens',
+              'java.base/java.lang=ALL-UNNAMED',
+              '-jar',
+              '/home/eip/.local/share/nvim/mason/packages/jdtls/plugins/org.eclipse.equinox.launcher_1.7.0.v20250331-1702.jar', -- Update to your JDTLS path
+              '-configuration',
+              '/home/eip/.local/share/nvim/mason/packages/jdtls/config_linux', -- Update this to your system (config_mac, config_win, etc.)
+              '-data',
+              workspace_folder,
+            },
+            root_dir = jdtls.setup.find_root { '.git', 'mvnw', 'gradlew', 'build.gradle', 'pom.xml' },
+            capabilities = capabilities,
+            settings = {
+              java = {
+                references = {
+                  includeDecompiledSources = true,
+                },
+                eclipse = {
+                  downloadSources = true,
+                },
+                configuration = {
+                  updateBuildConfiguration = 'interactive',
+                  runtimes = {
+                    { name = 'JavaSE-17', path = '/usr/lib/jvm/java-17-openjdk-amd64' },
+                  },
+                },
+                maven = {
+                  downloadSources = true,
+                },
+                implementationsCodeLens = {
+                  enabled = true,
+                },
+                referencesCodeLens = {
+                  enabled = true,
+                },
+                signatureHelp = { enabled = true },
+                contentProvider = { preferred = 'fernflower' },
+                format = {
+                  enabled = true,
+                  settings = {
+                    url = vim.fn.stdpath 'config' .. '/lang_servers/intellij-java-google-style.xml',
+                    profile = 'GoogleStyle',
+                  },
+                },
+                completion = {
+                  favoriteStaticMembers = {
+                    'org.hamcrest.MatcherAssert.asserthThat',
+                    'org.hamcrest.Matchers.*',
+                    'org.hamcrest.CoreMatchers.*',
+                    'org.junit.jupiter.api.Assertions.*',
+                    'java.util.Objects.requireNonNull',
+                    'java.util.Objects.requireNonNullElse',
+                    'org.mockito.Mockito.*',
+                  },
+                  filteredTypes = {
+                    'com.sun.*',
+                    'io.micrometer.shaded.*',
+                    'java.awt.*',
+                    'jdk.*',
+                    'sun.*',
+                  },
+                  importOrder = {
+                    'java',
+                    'javax',
+                    'com',
+                    'org',
+                    'de',
+                    'at',
+                  },
+                },
+                sources = {
+                  organizeImports = {
+                    starThreshold = 9999,
+                    staticStarThreshold = 9999,
+                  },
+                },
+                codeGeneration = {
+                  toString = {
+                    template = '${object.className}{${member.name()}=${member.value}, ${otherMembers}}',
+                    -- flags = {
+                    -- 	allow_incremental_sync = true,
+                    -- },
+                  },
+                  useBlocks = true,
+                },
+              },
+            },
+            init_options = {
+              bundles = {}, -- Add your debug bundles if using DAP
+              extendedClientCapabilites = jdtls.extendedClientCapabilites,
+            },
+          }
+
+          jdtls.start_or_attach(config)
+        end,
+      })
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
@@ -836,7 +1002,7 @@ require('lazy').setup({
       appearance = {
         -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
         -- Adjusts spacing to ensure icons are aligned
-        nerd_font_variant = 'mono',
+        nerd_font_variant = 'normal',
       },
 
       completion = {
@@ -965,18 +1131,18 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
-  -- require 'kickstart.plugins.indent_line',
-  -- require 'kickstart.plugins.lint',
-  -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.debug',
+  require 'kickstart.plugins.indent_line',
+  require 'kickstart.plugins.lint',
+  require 'kickstart.plugins.autopairs',
+  require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
